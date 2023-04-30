@@ -1,16 +1,15 @@
 using LinearAlgebra
 # Derivada parcial aproximada por diferencia central para f=f(x1,...,xn)
-function ∂xj(f,x0,ind,h=1e-5)
+function ∂xj(f,x0,ind=1,h=1e-5)
     # Para funciones escalares
     if length(x0) == 1
         return (f(x0+h)-f(x0-h))/2h
-    # Para funciones vectoriales
+    # Para funciones vectoriales  
     else
         H = zeros(length(x0))
         H[ind] = h
         return (f(x0+H)-f(x0-H))/2h
     end
-
 end
 
 # Jacobiano
@@ -118,4 +117,130 @@ function RK4(f,x0,t0,tf,h)
         return tt,xx
     end
     
+end
+
+function Des_∇(f,x_inicial,α=1e-2,ε = 1e-7)
+    # Descenso de gradiente para funciones univaluadas
+    # α -> Tamaño de paso
+    # ε -> precisión deseada
+    iter = 1000
+    xx =  zeros(iter+1)
+    xx[1] = x_inicial
+    j = 2
+    while (abs(∂xj(f,xx[j-1]))> ε)
+        (j >= iter) && break  # Máximo iter iteraciones
+        xx[j] = xx[j-1]-α*∂xj(f,xx[j-1])
+        j += 1    
+    end
+    return xx[j-1]
+end
+
+function BaseLineal(Xs,i,x)
+    # Xs -> arreglo ordenado de los N valores a interpolar
+    # i -> índice entre 1 y N
+    # x -> número real a evaluar
+    if i == 1
+        if ((x >= Xs[1]) & (x <= Xs[2]))
+            m = 1/(Xs[2]-Xs[1])
+            return (Xs[2]-x)*m 
+            
+        else return 0
+            
+        end
+        
+    elseif i == length(Xs)
+        if ((x >= Xs[end-1]) & (x <= Xs[end]))
+            m = 1/(Xs[end]-Xs[end-1])
+            return (x-Xs[end-1])*m
+            
+        else return 0
+            
+        end
+        
+    else
+        if ((x >= Xs[i-1]) & (x <= Xs[i]))
+            m = 1/(Xs[i]-Xs[i-1])
+            return (x-Xs[i-1])*m
+            
+        elseif ((x >= Xs[i]) & (x <= Xs[i+1]))
+            m = 1/(Xs[i+1]-Xs[i])
+            return (Xs[i+1]-x)*m
+            
+        else return 0
+            
+        end
+    end
+end
+
+function InterpolLineal(Xs,Ys)
+    # Xs -> los N valores x_i a interpolar
+    # Ys -> los N valores y_i a interpolar
+    # La función regresa la función interpolada f
+    
+    (length(Xs) == length(Ys)) || return error("Longitud de arreglos Xs, Ys no es la misma")
+
+    function f(x)
+        y = 0
+        for k in 1:length(Xs)
+            y += Ys[k]*BaseLineal(Xs,k,x)
+        end
+        return y
+    end
+    
+    return f
+end
+
+function Euler(f,x_0,t_0,t_f,h)
+    n = Int(ceil((t_f-t_0)/h))
+    sol = zeros(n)
+    tt = zeros(n)
+    sol[1] = x_0
+    tt[1] = t_0
+    for i in 2:n
+        sol[i] = sol[i-1] + h*f(sol[i-1])
+        tt[i] = tt[i-1]+h 
+    end
+    return tt, sol
+end
+
+function Rot(X,ϕ,θ,ψ)
+    # Matriz para pasar del sistema primado al no primado
+    M = zeros(3,3)
+    M[1,1] = cos(ψ)*cos(ϕ)-cos(θ)*sin(ψ)*sin(ϕ)
+    M[1,2] = -cos(θ)*cos(ψ)*sin(ϕ)-sin(ψ)*cos(ϕ)
+    M[1,3] = sin(θ)*sin(ϕ)
+    M[2,1] = cos(θ)*sin(ψ)*cos(ϕ)+cos(ψ)*sin(ϕ)
+    M[2,2] = cos(θ)*cos(ψ)*cos(ϕ)-sin(ψ)*sin(ϕ)
+    M[2,3] = -sin(θ)*cos(ϕ)
+    M[3,1] = sin(θ)*sin(ψ)
+    M[3,2] = sin(θ)*cos(ψ)
+    M[3,3] = cos(θ)
+    return M*X
+end
+
+function intSimpson(f,a,b,n)
+    if mod(n,2)!=0
+        n = n+1
+    end
+    xs=collect(range(a,stop=b,length=n+1))
+    integral = 0
+    for i in 1:2:(length(xs)-2)
+        integral = integral + (f(xs[i]) + 4*f(xs[i+1]) + f(xs[i+2]))/3
+    end
+    return ((b-a)/n)*integral
+end
+
+function Simpson38(f,a,b,N=1e6)
+    # f es la función que se integrará en el intervalo [a,b]
+    N = Int(3*N+1)  # La partición debe de tener N puntos con (N % 3 = 1)
+    h = (b-a)/N
+    x = range(a,stop=b,length=N) 
+    # Puntos inicial y final
+    sum = (3*h/8)*(f(x[1])+3*f(x[2])+3*f(x[3])+f(x[4]))
+    sum += (3*h/8)*(f(x[end-3])+3*f(x[end-2])+3*f(x[end-1])+f(x[end]))
+    for i in 4:3:N-3
+        sum += f(x[i])+3*f(x[i+1])+3*f(x[i+2])+f(x[i+3])
+    end
+    sum *= (3*h/8)
+    return sum
 end
